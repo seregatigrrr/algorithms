@@ -137,7 +137,7 @@ public:
         return *elem;
     }
     void Swap(TVector& other) noexcept{
-        data.Swap(other);
+        data.Swap(other.data);
         std::swap(sz, other.sz);
     }
 private:
