@@ -3,6 +3,11 @@
 #include <cassert>
 
 namespace TestTVector {
+    void TestConstructors(){
+        TVector<int> v(2,6);
+        TVector<int> res = {6,6};
+        assert(v == res);
+    }
     void TestPushBack() {
         {
             TVector<int> v{};
@@ -121,12 +126,56 @@ namespace TestTVector {
         assert(v == res3);
     }
 
+    void TestErase(){
+        TVector<int> v = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        int* next = v.Erase(v.Begin());
+        TVector<int> res = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+        assert(v == res);
+        assert(next == v.Begin());
+        v.Erase(v.Begin() + 2, v.Begin() + 5);
+        TVector<int> res2 = {1, 2, 6, 7, 8, 9};
+        assert(v == res2);
+    }
+    void TestInsert(){
+        TVector<int> v(3,100);
+        int* it = v.Begin();
+        int* i = v.Insert(it,200);
+        TVector<int> res = {200, 100, 100, 100};
+        assert(v == res);
+        assert(*i == 200);
+        it = v.End();
+        int temp = 300;
+        v.Insert(it, temp);
+        TVector<int> res2 = {200, 100, 100, 100, 300};
+        assert(v == res2);
+        it = v.Begin() + 2;
+        v.Insert(it, 400);
+        TVector<int> res3 = {200, 100, 400, 100, 100, 300};
+        assert(v == res3);
+        v.Insert(v.Begin() + 2, res.Begin(), res.End());
+        TVector<int> res4 = {200, 100, 200, 100, 100, 100, 400, 100, 100, 300};
+        assert(v == res4);
+        v.Insert(v.Begin() + 1, {1, 2, 3});
+        TVector<int> res5 = {200, 1, 2, 3, 100, 200, 100, 100, 100, 400, 100, 100, 300};
+        assert(v == res5);
+    }
+
+    void TestEmplace(){
+        TVector<int> v = {1, 2, 3};
+        v.Emplace(v.Begin() + 1, 4);
+        TVector<int> result = {1, 4, 2 , 3};
+        assert(v == result);
+    }
     void TestAll() {
+        TestConstructors();
         TestPushBack();
         TestSwap();
         TestClear();
         TestCopy();
         TestEmplaceBack();
         TestResize();
+        TestErase();
+        TestInsert();
+        TestEmplace();
     }
 }
