@@ -2,6 +2,7 @@
 
 #include <utility>
 #include <exception>
+#include <stdexcept>
 
 template <typename T>
 struct TMemory;
@@ -20,7 +21,7 @@ public:
         for(size_t i = 0; i < other.sz; ++i){
             Construct(data + i, other[i]);
         }
-        sz =  other.sz;
+        sz = other.sz;
     }
     TVector(TVector&& other) noexcept {
         Swap(other);
@@ -30,14 +31,38 @@ public:
             Destroy(data + i);
         }
     }
+    TVector(std::initializer_list<T> init): data(init.size()){
+        for(size_t i = 0; i < init.size(); ++i){
+            Construct(data + i, *(init.begin() + i));
+        }
+        sz = init.size();
+    }
 
     TVector& operator =(TVector<T>&& other) noexcept{
         Swap(other);
         return *this;
     }
-    TVector& operator= (const TVector<T>& other){ //красиво, но можно эффективней, если размер нынешнего вектора больше размера вектора справа. такой же принип у resize, потом напишу.
-        TVector<T> temp(other);
-        Swap(temp);
+    TVector& operator= (const TVector<T>& other){
+        if(other.sz > data.cp) {
+            TVector<T> temp(other);
+            Swap(temp);
+        }
+        else{
+            for(size_t i = 0; i < std::min(sz, other.sz); ++i){
+                 data[i] = other[i];
+            }
+            if(sz > other.sz){
+                for(size_t i = sz; i!= other.sz; --i){
+                    Destroy(data + i - 1);
+                }
+            }
+            else if(sz < other.sz){
+                for(size_t i = sz; i < other.sz; ++i){
+                    Construct(data + i, other[i]);
+                }
+            }
+            sz = other.sz;
+        }
         return *this;
     }
     size_t Capacity() const {
@@ -47,13 +72,11 @@ public:
         return sz;
     }
     bool Empty() const{
-        return sz == 0;
+        return ( sz == 0 );
     }
 
     T& Front(){
-        return *data.buf; //везде вместо *data.buf было бы правильней и красивей писать data + 0, но в последнее время я такой заботливый.. было очень сложно устоять.
-        // это не точно, но возможно, ещё можно было бы определить преобразование data в T*, но это вроде мета-программирование, что-то страшное, хрен знает как это делать,
-        // может позже.
+        return *data.buf;
     }
     const T& Front() const{
         return *data.buf;
@@ -64,41 +87,54 @@ public:
     const T& Back() const{
         return data[sz - 1];
     }
-    T* Data(){ //возможно работает не по стандарту для пустого вектора, ну а шо поделать. потом затещу.
+    T* Data(){
         return &Front();
     }
-
-    T& At(size_t pos){
+    const T* Data() const{
+        return &Front();
+    }
+    T& At(const size_t pos){
         if(!(pos > 0 &&  pos < sz)){
-            throw std::out_of_range("");//здесь можно написать например sstream ss; ss << pos <<" > " << sz, но страшна. что такое поток как не контейнер?А А А
+            throw std::out_of_range("index is out of range");//здесь можно написать например sstream ss; ss << pos <<" > " << sz, но страшна. что такое поток как не контейнер?А А А
         }
         return data[pos];
     }
     const T& At(size_t pos) const{
         if(!(pos > 0 &&  pos < sz)){
-            throw std::out_of_range("");//здесь можно написать например sstream ss; ss << pos <<" > " << sz, но страшна. что такое поток как не контейнер? А А А
+            throw std::out_of_range("index is out of range");//здесь можно написать например sstream ss; ss << pos <<" > " << sz, но страшна. что такое поток как не контейнер? А А А
         }
         return data[pos];
     }
     const T& operator[](size_t i) const{
         return data[i];
     }
-    T& operator[] (size_t i){
+    T& operator[] (const size_t i){
         return data[i];
     }
+    bool operator== (const TVector& other) const{
+        if(other.sz != sz){
+            return false;
+        }
+        for (size_t i = 0; i < sz; ++i){
+            if(data[i] != other[i]){
+                return false;
+            }
+        }
+        return true;
+    }
     T* Begin() { //WARNING, ЖЕРТВА CODESTYLE
-        return data.buf;//WARNING, ЖЕРТВА CODESTYLE
-    }//WARNING, ЖЕРТВА CODESTYLE
+        return data.buf;
+    }
     T* End(){ //WARNING, ЖЕРТВА CODESTYLE
-        return data + sz;//WARNING, ЖЕРТВА CODESTYLE
-    }//WARNING, ЖЕРТВА CODESTYLE
+        return data + sz;
+    }
     const T* Begin() const { //WARNING, ЖЕРТВА CODESTYLE
-        return data.buf;//WARNING, ЖЕРТВА CODESTYLE
-    }//WARNING, ЖЕРТВА CODESTYLE
+        return data.buf;
+    }
     const T* End() const{ //WARNING, ЖЕРТВА CODESTYLE
-        return data + sz; //WARNING, ЖЕРТВА CODESTYLE
-    } //WARNING, ЖЕРТВА CODESTYLE
-    void Reserve(size_t n){
+        return data + sz;
+    }
+    void Reserve(const size_t n){
         if(n > data.cp ){
             TMemory<T> data2(n);
             for(size_t i = 0; i < sz; ++i){
@@ -110,8 +146,10 @@ public:
     }
 
     void Clear(){
-        TVector newV(data.cp);
-        Swap(std::move(newV));
+        for (size_t i = 0; i < sz; ++i) {
+            Destroy(data + i);
+        }
+        sz = 0;
     }
     void PushBack(const T& elem){
         if(sz == data.cp){
@@ -126,6 +164,26 @@ public:
         }
         Construct(data + sz, std::move(elem));
         ++sz;
+    }
+    void PopBack(){
+        if(sz > 0) {
+            Destroy(data + sz - 1);
+        }
+        --sz;
+    }
+    void Resize(size_t n){
+        Reserve(n);
+        if(sz < n){
+            for(size_t i = sz; i < n; ++i){
+                Construct(data + sz);
+            }
+        }
+        else{
+            for(size_t i = sz; i!= n; --i){
+                Destroy(data + i - 1);
+            }
+        }
+        sz = n;
     }
     template <typename ... Args>
     T& EmplaceBack( Args&& ... args ){
@@ -193,7 +251,7 @@ struct TMemory{
         return buf[i];
     }
 
-    void Swap(TMemory<T>& other) noexcept{ //Для вызова std::swap нужен оператор присваивания, конструктор копирования или перемещения. но они нигде кроме этой строчки не пригодятся.
+    void Swap(TMemory<T>& other) noexcept{
         std::swap(buf, other.buf);
         std::swap(cp, other.cp);
     }
@@ -201,7 +259,7 @@ struct TMemory{
     TMemory(TMemory&& other) noexcept{
         Swap(other);
     }
-    TMemory& operator = (TMemory&& other) noexcept{
+    TMemory& operator= (TMemory&& other) noexcept{
         Swap(other);
         return *this;
     }
